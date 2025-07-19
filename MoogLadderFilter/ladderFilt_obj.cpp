@@ -3,29 +3,11 @@
 
 #include "ladderFilt_obj.h"
 
-std::vector<float> dataBlock;
 
-
-// initialisation of filter object
-void LadderFilt_Obj::init_ladder_processing(float fs) {
-  m_fs = fs;
-  m_cutoff = 1.0;
-  m_resonance = 0.707;
-
-  m_alpha_0 = 0.0;
-  m_alpha = 0.0;
-  m_beta1 = 0.0;
-  m_beta2 = 0.0;
-  m_beta3 = 0.0;
-  m_beta4 = 0.0;
-  m_state1 = 0.0;
-  m_state2 = 0.0;
-  m_state3 = 0.0;
-  m_state4 = 0.0;
-}
-
-// update function (necessary for teensy audioobject)
+// update function (necessary for teensy audio object)
 void LadderFilt_Obj::update(void) {
+  
+  std::vector<float> dataBlock;
   dataBlock.resize(AUDIO_BLOCK_SAMPLES);
   
   audio_block_t *cur_block;
