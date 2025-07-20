@@ -1,5 +1,4 @@
 #include <stdint.h>
-#include<vector>
 #include <SerialFlash.h>
 #include "tubeAmp_obj.h"
 
@@ -7,8 +6,8 @@ std::vector<float> dataBlock;
 
 
 // initialisation of tubeAmp object
-void TubeAmp_Obj::init_tubeAmp_processing(float fs) {
-  m_fs = fs;
+void TubeAmp_Obj::init_tubeAmp_processing()
+{
   m_gain = 1.0;
   m_lowPoint = -1.0;
   m_highPoint = 1.0;
@@ -16,33 +15,21 @@ void TubeAmp_Obj::init_tubeAmp_processing(float fs) {
   m_tubeMem[1] = 0.0;
   m_RC = 0.0;
   m_feedback = 0.0;
-  m_nOversamp = 1;
   
-  m_firCoeff = new float[m_firOrder];
-  float firCoeff[m_firOrder] = {
+  // fill coeff array
+  float coeffs[k_firOrder] = {
     #include "fir_coeff.h"
   };
-  for (int i = 0; i < m_firOrder; ++i) {
-    m_firCoeff[i] = firCoeff[i];
-  }
-  
-  m_coeffsMat = new float*[m_nOversamp];
-  for (int i = 0; i < m_nOversamp; ++i) {
-    m_coeffsMat[i] = new float[m_firOrder/m_nOversamp];
-  }
+  for (int i = 0; i < k_firOrder; ++i)
+    m_firCoeffs[i] = coeffs[i];
 
-  // Matrix mit den Polyphasen-Koeffizienten
-  for (int j=0; j<m_nOversamp; j++) {
-    for (int i=0; i<m_firOrder/m_nOversamp; i++)
-      m_coeffsMat[j][i]= m_firCoeff[m_nOversamp*i+j];
-  }
-  
-  m_upMem = new float[m_firOrder/m_nOversamp];
-  m_downMem = new float[m_firOrder];
+  updateMatrix();
+  reset();
 }
 
 // update function (necessary for teensy audio-object)
-void TubeAmp_Obj::update(void) {
+void TubeAmp_Obj::update(void)
+{
   dataBlock.resize(AUDIO_BLOCK_SAMPLES);
   
   audio_block_t *cur_block;
@@ -50,14 +37,14 @@ void TubeAmp_Obj::update(void) {
  
   if (!cur_block) return;
 
-  for (int i=0; i<AUDIO_BLOCK_SAMPLES; i++)
+  for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++)
   {
     dataBlock[i] = cur_block->data[i] / 32768.;          // conversion to float32 [-1, 1)
   }
-    
+  
   getData(dataBlock);  // processing of audio block
 
-  for (int i=0; i<AUDIO_BLOCK_SAMPLES; i++)
+  for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++)
   {
     dataBlock[i] = dataBlock[i] * 32768;          // conversion to int16
 
@@ -77,40 +64,42 @@ void TubeAmp_Obj::update(void) {
 // get data function to process one full audio block
 int TubeAmp_Obj::getData(std::vector<float>& data)
 {
-  float up_buffer[m_nOversamp];
   for (auto kk = 0U; kk < data.size(); ++kk)
   { 
     // processing
-    float curIn = data[kk];
-    upsampling(curIn, up_buffer);
-    for (int ii=0; ii<m_nOversamp; ii++) {
-      up_buffer[ii] = vacTube(up_buffer[ii], m_fs*m_nOversamp);
-    }
-    data[kk] = downsampling(up_buffer);
+    auto curIn = data[kk];
+    upsampling(curIn);
+
+    for (int ii = 0; ii < k_nOversamp; ii++) 
+      m_upBuffer[ii] = vacTube(m_upBuffer[ii], k_fs * k_nOversamp);
+
+    data[kk] = downsampling();
   }
   return 0;
 }
 
-
 // transfer function of vacuum tube
 float TubeAmp_Obj::transFunc(float x, float a, float b, float g, float d, float o)
 {
-  if ( x < (a/g)) {
-    float k1 = a*a;
-    float k2 = 1 + 2*a;
+  if (x < (a / g))
+  {
+    float k1 = a * a;
+    float k2 = 1 + 2 * a;
 
-    float out = ((k1 + g*x)/(k2 - g*x)) -o;
+    float out = ((k1 + g * x) / (k2 - g * x)) -o;
     return out;
   }
-  else if ((b/g) < x){
-    float k1 = b*b;
-    float k2 = 1 - 2*b;
+  else if ((b / g) < x)
+  {
+    float k1 = b * b;
+    float k2 = 1 - 2 * b;
 
-    float out = ((g*x - k1)/(g*x + k2)) -o;
+    float out = ((g * x - k1) / (g * x + k2)) - o;
     return out;
   }
-  else {
-  float out = g*x +d -o;
+  else
+  {
+  float out = g * x + d - o;
   return out;
   }
 }
@@ -118,8 +107,8 @@ float TubeAmp_Obj::transFunc(float x, float a, float b, float g, float d, float 
 // tube amp simulation
 float TubeAmp_Obj::vacTube(float input, double fs)
 {
-  float o = 0;  // shifting parameter
-  float d = -0.4;  // shifting parameter
+  float o = 0.f;  // shifting parameter
+  float d = -0.f;  // shifting parameter
   
   float alpha = 1/(2*m_RC*fs);
   float C1 = ((1-alpha)/(1+alpha)) * m_tubeMem[1] + (alpha/(1+alpha)) * m_tubeMem[0];
@@ -168,44 +157,43 @@ float TubeAmp_Obj::vacTube(float input, double fs)
   return out;
 }
 
-void TubeAmp_Obj::upsampling(float input, float buffer[])
+void TubeAmp_Obj::upsampling(float const input)
 {
-  float acc;
-  int numCoeffs = m_firOrder/m_nOversamp;
+  int const numCoeffs = k_firOrder / k_nOversamp;
 
   // copy input to shift register
   m_upMem[0] = input;
 
   // convolution
-  for (int j=0; j<m_nOversamp; j++)
+  for (int j = 0; j < k_nOversamp; j++)
   {
-      acc = 0;
-      for (int i=0; i<numCoeffs; i++)
-          acc += m_coeffsMat[j][i] * m_upMem[i];
+    auto acc = 0.f;
+    for (int i = 0; i < numCoeffs; i++)
+      acc += m_coeffsMat[j][i] * m_upMem[i];
 
-      buffer[j] = acc * m_nOversamp;
+    m_upBuffer[j] = acc * k_nOversamp;
   }
 
-    // shift register
-    for (int i=numCoeffs-1; i>0; i--)
-        m_upMem[i] = m_upMem[i-1];
+  // shift register
+  for (int i = numCoeffs-1; i > 0; i--)
+      m_upMem[i] = m_upMem[i - 1];
 }
 
-float TubeAmp_Obj::downsampling(float buffer[]) {
-  float acc;
-
+float TubeAmp_Obj::downsampling()
+{
   // copy samples to shift register
-  for (int i=0; i<m_nOversamp; i++)
-      m_downMem[i] = buffer[i];
+  for (int i = 0; i < k_nOversamp; i++)
+      m_downMem[i] = m_upBuffer[i];
 
   // convolution
-  acc = 0;
-  for (int i=0; i<m_firOrder; i++)
-      acc += m_firCoeff[i] * m_downMem[i];
+  auto acc = 0.f;
+  for (int i = 0; i < k_firOrder; i++)
+    acc += m_firCoeffs[i] * m_downMem[i];
 
   // shift register
-  for (int i=m_firOrder-1; i>=m_nOversamp; i--)
-      m_downMem[i] = m_downMem[i-m_nOversamp];
+  for (int i = k_firOrder - 1; i >= k_nOversamp; i--)
+    m_downMem[i] = m_downMem[i - k_nOversamp];
+
   return acc;
 }
 
@@ -225,22 +213,18 @@ void TubeAmp_Obj::reset()
 {
   m_tubeMem[0] = 0.0;
   m_tubeMem[1] = 0.0;
-  
-  m_downMem = new float[m_firOrder];
-  for (int i=0; i<m_firOrder; i++) {
-    //m_upBuffer[i] = 0;
-    m_downMem[i] = 0;
-  }
-  m_upMem = new float[m_firOrder/m_nOversamp];
-  for (int i=0; i<m_firOrder/m_nOversamp; i++)
-    m_upMem[i] = 0;
-  m_coeffsMat = new float*[m_nOversamp];
-  for (int i = 0; i < m_nOversamp; ++i) {
-    m_coeffsMat[i] = new float[m_firOrder/m_nOversamp];
-  }
-  // write coefficients into matrix
-  for (int j=0; j<m_nOversamp; j++) {
-    for (int i=0; i<m_firOrder/m_nOversamp; i++)
-      m_coeffsMat[j][i]= m_firCoeff[m_nOversamp*i+j];
+
+  m_upBuffer.fill(0.f);
+  m_upMem.fill(0.f);
+  m_downMem.fill(0.f);
+}
+
+void TubeAmp_Obj::updateMatrix()
+{
+  // fill matrix with polyphase-coefficients
+  for (int j =  0; j < k_nOversamp; j++)
+  {
+    for (int i = 0; i < (k_firOrder / k_nOversamp); i++)
+      m_coeffsMat[j][i] = m_firCoeffs[k_nOversamp * i + j];
   }
 }
