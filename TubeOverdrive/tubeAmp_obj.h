@@ -9,9 +9,14 @@ class TubeAmp_Obj : public AudioStream
 	  TubeAmp_Obj(void)
      : AudioStream(1, inputQueueArray)
      , k_fs{AUDIO_SAMPLE_RATE_EXACT}
+     , m_gain{1.f}
+     , m_lowPoint{-1.f}
+     , m_highPoint{1.f}
+     , m_RC{0.f}
+     , m_feedback{0.f}
     {}
 
-    void init_tubeAmp_processing();
+    void init();
 	  virtual void update(void);
 
     int getData(std::vector<float>& data);
@@ -28,6 +33,7 @@ class TubeAmp_Obj : public AudioStream
 
     static constexpr int k_firOrder = 64;
     static constexpr int k_nOversamp = 4;
+    static constexpr int k_coeffsPerStage = k_firOrder / k_nOversamp;
     const double k_fs;
     float m_gain;
     float m_lowPoint;
@@ -37,8 +43,7 @@ class TubeAmp_Obj : public AudioStream
     float m_feedback;
     
     std::array<float, k_firOrder> m_firCoeffs;
-    std::array<std::array<float, (k_firOrder / k_nOversamp)>, k_nOversamp> m_coeffsMat;
-    std::array<float, (k_firOrder / k_nOversamp)> m_upMem;
+    std::array<float, k_coeffsPerStage> m_upMem;
     std::array<float, k_firOrder> m_downMem;
     std::array<float, k_nOversamp> m_upBuffer;
     
@@ -46,5 +51,4 @@ class TubeAmp_Obj : public AudioStream
     float vacTube(float input, double fs);
     void upsampling(float input);
     float downsampling();
-    void updateMatrix();
 };

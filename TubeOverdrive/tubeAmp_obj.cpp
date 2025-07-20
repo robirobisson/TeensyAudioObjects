@@ -6,16 +6,8 @@ std::vector<float> dataBlock;
 
 
 // initialisation of tubeAmp object
-void TubeAmp_Obj::init_tubeAmp_processing()
+void TubeAmp_Obj::init()
 {
-  m_gain = 1.0;
-  m_lowPoint = -1.0;
-  m_highPoint = 1.0;
-  m_tubeMem[0] = 0.0;
-  m_tubeMem[1] = 0.0;
-  m_RC = 0.0;
-  m_feedback = 0.0;
-  
   // fill coeff array
   float coeffs[k_firOrder] = {
     #include "fir_coeff.h"
@@ -23,7 +15,6 @@ void TubeAmp_Obj::init_tubeAmp_processing()
   for (int i = 0; i < k_firOrder; ++i)
     m_firCoeffs[i] = coeffs[i];
 
-  updateMatrix();
   reset();
 }
 
@@ -159,8 +150,6 @@ float TubeAmp_Obj::vacTube(float input, double fs)
 
 void TubeAmp_Obj::upsampling(float const input)
 {
-  int const numCoeffs = k_firOrder / k_nOversamp;
-
   // copy input to shift register
   m_upMem[0] = input;
 
@@ -168,14 +157,14 @@ void TubeAmp_Obj::upsampling(float const input)
   for (int j = 0; j < k_nOversamp; j++)
   {
     auto acc = 0.f;
-    for (int i = 0; i < numCoeffs; i++)
-      acc += m_coeffsMat[j][i] * m_upMem[i];
+    for (int i = 0; i < k_coeffsPerStage; i++)
+      acc += m_firCoeffs[k_nOversamp * i + j] * m_upMem[i];
 
     m_upBuffer[j] = acc * k_nOversamp;
   }
 
   // shift register
-  for (int i = numCoeffs-1; i > 0; i--)
+  for (int i = k_coeffsPerStage - 1; i > 0; i--)
       m_upMem[i] = m_upMem[i - 1];
 }
 
@@ -217,14 +206,4 @@ void TubeAmp_Obj::reset()
   m_upBuffer.fill(0.f);
   m_upMem.fill(0.f);
   m_downMem.fill(0.f);
-}
-
-void TubeAmp_Obj::updateMatrix()
-{
-  // fill matrix with polyphase-coefficients
-  for (int j =  0; j < k_nOversamp; j++)
-  {
-    for (int i = 0; i < (k_firOrder / k_nOversamp); i++)
-      m_coeffsMat[j][i] = m_firCoeffs[k_nOversamp * i + j];
-  }
 }
