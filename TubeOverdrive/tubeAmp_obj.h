@@ -23,7 +23,7 @@ class TubeAmp_Obj : public AudioStream
     void setGain(float gain);
     void setLowPoint(float lowPoint) { m_lowPoint = lowPoint; };
     void setHighPoint(float highPoint) { m_highPoint = highPoint; };
-    void setFcrit(float f0) { m_RC = 1 / (2 * M_PI * f0); };
+    void setFcrit(float f0) { m_RC = 1.f / (2.f * M_PI * f0); };
     void setFeedback(float fb) { m_feedback = fb; };
     void reset();
 
@@ -38,9 +38,9 @@ class TubeAmp_Obj : public AudioStream
     float m_gain;
     float m_lowPoint;
     float m_highPoint;
-    float m_tubeMem[2];
     float m_RC;
     float m_feedback;
+    std::array<float, 2> m_tubeMem;
     
     std::array<float, k_firOrder> m_firCoeffs;
     std::array<float, k_coeffsPerStage> m_upMem;
