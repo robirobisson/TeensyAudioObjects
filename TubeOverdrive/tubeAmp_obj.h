@@ -10,8 +10,8 @@ class TubeAmp_Obj : public AudioStream
      : AudioStream(1, inputQueueArray)
      , k_fs{AUDIO_SAMPLE_RATE_EXACT}
      , m_gain{1.f}
-     , m_lowPoint{-1.f}
-     , m_highPoint{1.f}
+     , m_lowPoint{-0.9f}
+     , m_highPoint{0.9f}
      , m_RC{0.f}
      , m_feedback{0.f}
     {}
@@ -20,9 +20,9 @@ class TubeAmp_Obj : public AudioStream
 	  virtual void update(void);
 
     int getData(std::vector<float>& data);
-    void setGain(float gain);
-    void setLowPoint(float lowPoint) { m_lowPoint = lowPoint; };
-    void setHighPoint(float highPoint) { m_highPoint = highPoint; };
+    void setGain(float gain) { gain = std::max(std::min(gain, 60.f),1.f); m_gain = gain; };
+    void setLowPoint(float lowPoint) { lowPoint = std::max(std::min(lowPoint, -0.01f), -0.99f); m_lowPoint = lowPoint; };
+    void setHighPoint(float highPoint) { highPoint = std::max(std::min(highPoint, 0.99f), 0.01f); m_highPoint = highPoint; };
     void setFcrit(float f0) { m_RC = 1.f / (2.f * M_PI * f0); };
     void setFeedback(float fb) { m_feedback = fb; };
     void reset();

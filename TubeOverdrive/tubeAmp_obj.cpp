@@ -186,18 +186,6 @@ float TubeAmp_Obj::downsampling()
   return acc;
 }
 
-void TubeAmp_Obj::setGain(float gain)
-{
-  // input value boundaries
-  if (gain < 1){
-    gain = 1;
-  }
-  if (gain > 60){
-    gain = 60;
-  }
-  m_gain = gain; 
-}
-
 void TubeAmp_Obj::reset()
 {
   m_tubeMem[0] = 0.0;
